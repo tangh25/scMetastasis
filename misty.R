@@ -12,16 +12,16 @@ library(tidyverse)  # Data manipulation
 library(recipes)
 
 # Load spatial Seurat object
-GBM4 <- readRDS('adata_vis_GSM5420753_region.rds')
+adata_vis <- readRDS('adata_vis_region.rds')
 
 # Visualize spatial distribution
-SpatialPlot(GBM4)
+SpatialPlot(adata_vis)
 
 ########################################################
 # Extract cell-type composition (e.g., deconvolution output)
 ########################################################
 
-GBM4@meta.data
+adata_vis@meta.data
 
 # Columns to exclude (technical or metadata fields)
 exclude_cols <- c("region", "coord_key", "nCount_SCT", "nFeature_SCT",
@@ -31,7 +31,7 @@ exclude_cols <- c("region", "coord_key", "nCount_SCT", "nFeature_SCT",
                   "_index", "in_tissue",'seurat_clusters')
 
 # Keep only composition-related columns
-composition <- GBM4@meta.data[, !(colnames(GBM4@meta.data) %in% exclude_cols)]
+composition <- adata_vis@meta.data[, !(colnames(adata_vis@meta.data) %in% exclude_cols)]
 
 head(composition)
 
@@ -48,7 +48,7 @@ colnames(composition) <- name_map$safe
 ########################################################
 
 geometry <- GetTissueCoordinates(
-  GBM4,
+  adata_vis,
   cols = c("imagerow", "imagecol"),
   scale = NULL
 )
@@ -130,21 +130,21 @@ misty_results <- readRDS('./GSM5420753_misty_results.rds')
 ########################################################
 
 SpatialFeaturePlot(
-  GBM4,
+  adata_vis,
   features = c("Fib_HOPX", "Macro_LYVE1"),
   image.alpha = 1,
   pt.size.factor = 1.6
 )
 
 SpatialFeaturePlot(
-  GBM4,
+  adata_vis,
   features = c("Fib_HOPX", "Macro_LYVE1"),
   image.alpha = 0,
   pt.size.factor = 1.6
 )
 
 # Save spatial object
-save(GBM4, file = './GSM5420753_misty.rdata')
+save(adata_vis, file = './GSM5420753_misty.rdata')
 
 load('./GSM5420753_misty.rdata')
 
