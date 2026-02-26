@@ -120,10 +120,10 @@ misty_results %>%
   )
 
 # Save results
-saveRDS(misty_results, file = './GSM5420753_misty_results.rds')
+saveRDS(misty_results, file = './adata_vis_misty_results.rds')
 
 # Reload if needed
-misty_results <- readRDS('./GSM5420753_misty_results.rds')
+misty_results <- readRDS('./adata_vis_misty_results.rds')
 
 ########################################################
 # Visualize spatial distribution of selected cell types
@@ -144,9 +144,9 @@ SpatialFeaturePlot(
 )
 
 # Save spatial object
-save(adata_vis, file = './GSM5420753_misty.rdata')
+save(adata_vis, file = './adata_vis_misty.rdata')
 
-load('./GSM5420753_misty.rdata')
+load('./adata_vis_misty.rdata')
 
 ########################################################
 # Co-localization analysis (custom visualization)
