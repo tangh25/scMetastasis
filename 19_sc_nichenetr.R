@@ -28,7 +28,7 @@ if(organism == "human"){
 lr_network <- lr_network %>% distinct(from, to)
 
 # Define receiver cell type and get expressed genes
-receiver <- "CD8 T"
+receiver <- "Macro_LYVE1"
 expressed_genes_receiver <- get_expressed_genes(receiver, seuratObj, pct = 0.05)
 
 # Identify expressed receptors and potential ligands for receiver
