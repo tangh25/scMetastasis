@@ -1,13 +1,5 @@
-# Install required packages if needed
-# BiocManager::install("genefilter")
-# devtools::install_github("JEFworks/MUDAN")
-# devtools::install_github("data2intelligence/SpaCET")
-
-# Specify Python environment for reticulate (required by SpaCET)
-Sys.setenv(RETICULATE_PYTHON="/home/htang/.conda/envs/TumorBoundary/bin/python.exe")
 
 library(SpaCET)
-
 ############################################################
 # Load Visium spatial transcriptomics data
 ############################################################
