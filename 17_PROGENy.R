@@ -9,14 +9,14 @@ library(ggpubr)
 library(ggsci)
 library(viridis)
 
-# Set working directory and load Seurat object (Fibroblasts)
-setwd("/home/rstudio/project/Metastasis/analysis/Fib_analysis")
-load('Pcancer_Fibroblasts_rename_RunUMAP.RData')
+# Set working directory and load Seurat object
+setwd("./analysis")
+load('data_RunUMAP.RData')
 
 # Preprocess
-data_harmony$celltype <- data_harmony$Subcelltype
-sce <- data_harmony
-rm(data_harmony)
+sc_data$celltype <- sc_data$Subcelltype
+sce <- sc_data
+rm(sc_data)
 Idents(sce) <- "celltype"
 
 # Create cluster annotation dataframe
@@ -52,7 +52,7 @@ summarized_progeny_scores_df <- summarized_progeny_scores %>%
   data.frame(row.names = 1, check.names = FALSE, stringsAsFactors = FALSE)
 
 # Save summarized scores
-write.csv(summarized_progeny_scores_df, file = 'fib_summarized_progeny_scores_df.csv')
+write.csv(summarized_progeny_scores_df, file = 'summarized_progeny_scores_df.csv')
 
 ########################## Heatmap #################################
 paletteLength <- 100
