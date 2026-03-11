@@ -107,7 +107,7 @@ sc.pl.umap(
 )
 
 # Save clustering result
-adata.write_h5ad('/public8/lilab/student/.../pancancer_res.h5ad')
+adata.write_h5ad('./pancancer_res.h5ad')
 
 
 ############################
@@ -126,17 +126,6 @@ sc.pl.rank_genes_groups(adata, n_genes=20, sharey=False, fontsize=10)
 # Save figure
 ax = sc.pl.rank_genes_groups(adata, n_genes=20, sharey=False, fontsize=10, show=False)
 plt.savefig("rank_genes_groups_top20.png", dpi=300, bbox_inches='tight')
-
-
-############################
-# Save metadata
-############################
-
-adata.obs['raw_celltype'].to_csv('brain_metastasis_raw_celltype.csv', header=True)
-
-adata.write_h5ad('pancancer_res0.2_DEG.h5ad')
-
-adata = sc.read_h5ad('pancancer_res0.2_DEG.h5ad')
 
 
 ############################
@@ -196,7 +185,7 @@ combined_df.to_csv("ranked_genes_top50_by_score.csv", index=False)
 ############################
 
 genes = {
-    'Epithelial cells': ["EPCAM",'KRT19','KRT15','KRT17','FABP1','FBP1','FOXJ1','WFDC2','PARD3'],
+    'Epithelial cells': ["EPCAM",'KRT19','KRT15','KRT17'],
     'T and NK cells': ["PTPRC",'CD3D','CD3E','CD3G','CD2','CD4','CD8A','NKG7','GNLY'],
     'B cells': ["CD79A","CD79B","MS4A1","CD19"],
     'Plasma cells': ['CD79A','JCHAIN','MZB1','IGHG1'],
@@ -279,21 +268,17 @@ adata.write_h5ad('pancancer_res0.2_anno01.h5ad')
 adata_NKT  = raw_adata[raw_adata.obs['anno01']=='NK and T cells'].copy()
 
 # Save subset
-adata_NKT.write_h5ad('/public8/lilab/student/htang/Metastasis/data/DISCO/0_rawdata/1_anno/norm/finished/decontx/anno/pancancer_res0.2_anno01_NKT.h5ad')
+adata_NKT.write_h5ad('./pancancer_res0.2_anno01_NKT.h5ad')
 
 
 # Import packages and check versions
-import omicverse as ov
-print(f"omiverse version:{ov.__version__}")
 import scanpy as sc
 print(f"scanpy version:{sc.__version__}")
-import scvi
-print(f"scvi version:{scvi.__version__}")
 
 ov.ov_plot_set()
 
 import os
-os.chdir('/public8/lilab/student/htang/Metastasis/data/DISCO/0_rawdata/1_anno/norm/finished/decontx/anno')
+os.chdir('./data')
 
 
 ######## NK and T cells analysis
@@ -417,8 +402,6 @@ combined_df = combined_df[cols]
 # Save marker genes
 combined_df.to_csv("NKT_ranked_genes_top50_by_score.csv", index=False)
 
-
-
 #########################
 # Marker genes for NKT cell annotation
 genes_NKTcell = {
@@ -495,7 +478,7 @@ sc.pl.dotplot(adata_NKT, genes_NKTcell,'anno02_NKT', dendrogram=True,save='anno0
 adata_MonMac = raw_adata[raw_adata.obs['anno01']=='Monocytes and Macrophages'].copy()
 
 # Save subset
-adata_MonMac.write_h5ad('/public8/lilab/student/htang/Metastasis/data/DISCO/0_rawdata/1_anno/norm/finished/decontx/anno/pancancer_res0.2_anno01_Mon_Mac.h5ad')
+adata_MonMac.write_h5ad('./pancancer_res0.2_anno01_Mon_Mac.h5ad')
 
 # Load dataset
 adata_MonMac=sc.read_h5ad('./pancancer_res0.2_anno01_Mon_Mac.h5ad')
