@@ -1,11 +1,9 @@
 ############# After scVI integration
-
 # Detect number of CPU cores for multiprocessing
 import multiprocessing
 num_cores = multiprocessing.cpu_count()
 workers = max(1, num_cores - 10)  # leave some cores for system
 print(f"Using {workers} workers for multiprocessing")
-
 
 # Import required libraries
 import omicverse as ov
@@ -13,12 +11,6 @@ print(f"omiverse version:{ov.__version__}")
 
 import scanpy as sc
 print(f"scanpy version:{sc.__version__}")
-
-import scvi
-print(f"scvi version:{scvi.__version__}")
-
-import scib
-print(f"scib version:{scib.__version__}")
 
 # Set plotting style
 ov.ov_plot_set()
@@ -30,10 +22,10 @@ from matplotlib import rcParams
 rcParams['pdf.fonttype'] = 42  
 
 # Set working directory
-os.chdir('/public8/lilab/student/htang/Metastasis/data/DISCO/0_rawdata/1_anno/norm/finished/decontx/merge/results')
+os.chdir('./data')
 
 # Load scVI-integrated dataset
-adata = sc.read_h5ad('./pancancer_scvi_integrated_new112_new.h5ad')
+adata = sc.read_h5ad('./pancancer_scvi_integrated.h5ad')
 
 # Use only highly variable genes
 adata = adata[:, adata.var.highly_variable]
