@@ -1,0 +1,217 @@
+# Clear environment and load packages
+rm(list = ls())
+library(glue)
+library(dplyr)
+library(NMF)            
+library(reshape2)
+library(ComplexHeatmap)
+library(RColorBrewer)
+
+# Set working directory and load data
+setwd("/home/rstudio/project/Metastasis/analysis/NMF_subtype")
+rt  <- read.csv("Pcancer_anno02_Sub_celltype.csv")
+rt2 <- read.csv("Pcancer_anno02_Sub_celltype_metadata.csv")
+
+# Select relevant columns and rename
+info <- rt[, c(1,5,6,17,18,28)]
+colnames(info)[c(1,3,6)] <- c("cellID", "sampleID", "sub_cell_type")
+
+# Load sample metadata
+sample.info <- read.csv("clinicdata.csv")
+
+# Create combined group for primary/metastasis samples
+sample.info$group_OM <- ifelse(
+  sample.info$group == "Primary",
+  paste0(sample.info$disease2, "_primary"),
+  ifelse(sample.info$group == "Metastasis",
+         paste0(sample.info$disease2, "_", sample.info$tissue),
+         NA)
+)
+write.csv(sample.info, file='clinicdata_sample_info_new.csv')
+colnames(sample.info)[1] <- "sampleID"
+
+# Calculate cell type proportions per sample
+df <- table(info$sampleID, info$sub_cell_type)
+ratio <- as.data.frame(df / rowSums(df))
+colnames(ratio) <- c("sampleID", "cell.type", "Freq")
+
+# Filter metadata to match samples
+sample.info <- sample.info[sample.info$sampleID %in% info$sampleID,]
+
+# Select and deduplicate sample metadata columns
+response.meta <- sample.info[, c("sampleID", "project_id", "sample_type", "group",
+                                 "Primary.site","Metastasis.site",
+                                 "tissue", "disease2", "platform", "rna_source","group_OM")]
+response.meta <- response.meta %>% distinct(sampleID, .keep_all = TRUE)
+
+# Reshape ratio table to wide format and merge with metadata
+ratio <- dcast(ratio, sampleID ~ ratio$cell.type, value.var = "Freq")
+merge.version <- merge(ratio, response.meta, by = "sampleID", all.x = TRUE)
+rownames(ratio) <- ratio$sampleID
+ratio <- ratio[merge.version$sampleID,]
+ratio <- ratio[, -1]
+ratio[is.na(ratio)] <- 0
+
+# Min-max normalize per column to [0,1]
+scale_ratio <- apply(ratio, 2, function(x) (x - min(x)) / (max(x) - min(x)))
+scale_ratio <- t(as.data.frame(scale_ratio))
+
+# Run NMF across multiple ranks to estimate optimal rank
+ranks <- 2:10
+estim.coad <- nmf(scale_ratio, ranks, nrun = 100, method = "lee")
+plot(estim.coad)
+
+# Extract cophenetic coefficient to select best rank
+coph <- estim.coad$measures$cophenetic
+plot(seq_along(coph), coph, type="b", col="purple",
+     xlab="rank", ylab="cophenetic coefficient")
+
+# Compute differences to automatically pick optimal rank
+coph_diff <- NULL
+for (i in 2:length(coph)) {
+  coph_diff <- c(coph_diff, coph[i-1] - coph[i])
+}
+k.best <- which.max(coph_diff) + 1
+k.best
+
+# Run final NMF at selected rank
+seed = 2020820
+nmf.rank5 <- nmf(scale_ratio, rank = 4, nrun = 200, seed = seed, method = "lee")
+
+# Extract features (top contributing genes) per module
+index <- extractFeatures(nmf.rank5, "max")
+
+# Reorder modules
+new.index <- list()
+new.index[[1]] <- index[[1]]
+new.index[[2]] <- index[[2]]
+new.index[[3]] <- index[[4]]
+new.index[[4]] <- index[[3]]
+sig.order <- unlist(new.index)
+
+# Subset and scale NMF expression matrix
+NMF.Exp.rank5 <- scale_ratio[sig.order, ]
+NMF.Exp.rank5 <- na.omit(NMF.Exp.rank5)
+
+# Predict module membership per sample
+group <- predict(nmf.rank5)
+
+# Adjust module numbering/order
+new.group <- c()
+for(each in group){
+  if (each %in% c("1")) { new.group <- c(new.group, "1") }
+  if (each %in% c("2")) { new.group <- c(new.group, "2") }
+  if (each %in% c("4")) { new.group <- c(new.group, "3") }
+  if (each %in% c("3")) { new.group <- c(new.group, "4") }
+}
+new.group <- factor(new.group, levels = c("1", "2", "3", "4"))
+
+# Z-score normalize ratio matrix (scaled down for plotting)
+z_ratio <- scale(ratio)/4
+plot_matrix <- t(as.data.frame(z_ratio))[sig.order, ]
+plot_matrix <- na.omit(plot_matrix)
+
+# Merge NMF expression matrix with metadata
+info.matrix <- as.data.frame(t(NMF.Exp.rank5))
+info.matrix$sampleID <- rownames(info.matrix)
+info.matrix$group <- new.group
+info.matrix <- merge(info.matrix, response.meta, by = "sampleID", all.x = TRUE)
+
+# Assign gene modules
+gene.group <- c()
+for (each in rownames(NMF.Exp.rank5)) {
+  if (each %in% rownames(scale_ratio)[new.index[[1]]]) {
+    gene.group <- c(gene.group, "module1")
+  } else if (each %in% rownames(scale_ratio)[new.index[[2]]]) {
+    gene.group <- c(gene.group, "module2")
+  } else if (each %in% rownames(scale_ratio)[new.index[[3]]]) {
+    gene.group <- c(gene.group, "module3")
+  } else if (each %in% rownames(scale_ratio)[new.index[[4]]]) {
+    gene.group <- c(gene.group, "module4")
+  }
+}
+
+# Convert metadata columns to factors for annotation
+meta_cols <- c("sample_type","group.y","Primary.site","Metastasis.site",
+               "tissue","disease2","platform","rna_source","group_OM")
+info.matrix[meta_cols] <- lapply(info.matrix[meta_cols], function(x) factor(x, levels = unique(x)))
+
+# Define annotation colors
+getColors <- function(levels_vec, palette_name){
+  n <- length(levels_vec)
+  colorRampPalette(brewer.pal(min(max(n,3), 12), palette_name))(n)
+}
+ann_colors <- list(
+  sample_type = setNames(getColors(levels(info.matrix$sample_type), "Set3"), levels(info.matrix$sample_type)),
+  group.y     = setNames(getColors(levels(info.matrix$group.y), "Set2"), levels(info.matrix$group.y)),
+  tissue      = setNames(getColors(levels(info.matrix$tissue), "Pastel1"), levels(info.matrix$tissue)),
+  disease2    = setNames(getColors(levels(info.matrix$disease2), "Set1"), levels(info.matrix$disease2)),
+  platform    = setNames(getColors(levels(info.matrix$platform), "Accent"), levels(info.matrix$platform)),
+  rna_source  = setNames(getColors(levels(info.matrix$rna_source), "Dark2"), levels(info.matrix$rna_source)),
+  group_OM    = setNames(getColors(levels(info.matrix$group_OM), "Pastel1"), levels(info.matrix$group_OM))
+)
+
+# Create top annotation
+ha <- HeatmapAnnotation(
+  sample_type = info.matrix$sample_type,
+  group.y     = info.matrix$group.y,
+  Primary.site     = info.matrix$Primary.site,
+  Metastasis.site  = info.matrix$Metastasis.site,
+  tissue      = info.matrix$tissue,
+  disease2    = info.matrix$disease2,
+  platform    = info.matrix$platform,
+  rna_source  = info.matrix$rna_source,
+  group_OM    = info.matrix$group_OM,
+  col = ann_colors,
+  simple_anno_size = unit(0.5, "cm")
+)
+
+# Define right-side gene module colors
+gene_group_colors <- c("module1"="#E37D6F","module2"="#81C8D9","module3"="#129982","module4"="#7584A7")
+text_colors <- gene_group_colors[gene.group]
+
+# Create row annotation (gene modules)
+ra <- rowAnnotation(
+  gene = anno_text(
+    rownames(plot_matrix),
+    gp = gpar(fontsize=10, col="black", fill=text_colors, box_lwd=1, box_col="black"),
+    show_name = FALSE
+  ),
+  show_annotation_name = FALSE,
+  simple_anno_size = unit(0.5, "cm")
+)
+
+# Draw heatmap
+hp <- Heatmap(
+  plot_matrix,
+  name = "ratio",
+  top_annotation = ha,
+  right_annotation = ra,
+  column_split = new.group,
+  row_gap = unit(2, "mm"),
+  column_gap = unit(2, "mm"),
+  cluster_rows = FALSE,
+  cluster_columns = FALSE,
+  column_order = order(factor(info.matrix$group.y, levels=c("Metastasis","Primary"))),
+  row_names_gp = grid::gpar(fontsize = 10),
+  show_column_names = FALSE,
+  show_row_names = FALSE
+)
+
+# Save outputs
+saveRDS(plot_matrix, file='plot_matrix_k4.rds')
+draw(hp)
+heatmap_grob <- grid::grid.grab()
+heatmap_ggplot <- cowplot::ggdraw() + cowplot::draw_grob(heatmap_grob)
+ggsave(heatmap_ggplot, filename="cell_heatmapk4.png", width=18, height=14, dpi=300)
+ggsave(heatmap_ggplot, filename="cell_heatmapk4.pdf", width=18, height=14, dpi=300)
+ggsave("cll_heatmapk4.svg", heatmap_ggplot, device="svg", width=15, height=14, dpi=300)
+
+# Save processed matrices
+write.csv(plot_matrix, file='plot_matrixk4.csv')
+write.csv(sample.info, file='sample.infok4.csv')
+write.csv(merge.version, file='merge.versionk4.csv')
+write.csv(info.matrix, file='info.matrixk4.csv')
+
+# Reload info matrix if needed
+info.matrix <- read.csv('info.matrixk4.csv')
