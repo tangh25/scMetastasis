@@ -1,10 +1,4 @@
-# Install required packages if not already installed
-# devtools::install_github("YosefLab/VISION")
-# devtools::install_github("wu-yc/scMetabolism")
-# BiocManager::install('AUCell')
-# BiocManager::install('GSEABase')
-# BiocManager::install('GSVA')
-
+#scMetabolism
 library(GSVA)            # Gene set variation analysis methods
 library(scMetabolism)    # Single-cell metabolism analysis toolkit
 library(ggplot2)         # Visualization
