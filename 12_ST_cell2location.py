@@ -20,7 +20,7 @@ results_folder = './results/analysis_major/'
 ref_run_name = f'{results_folder}/reference_signatures'
 run_name = f'{results_folder}/cell2location_map'
 
-# adata_vis = sc.datasets.visium_sge(sample_id="V1_Human_Lymph_Node")
+# adata_vis = sc.datasets.visium_sge(sample_id="V1_Human")
 adata_vis = sc.read_visium(path="./", count_file='./filtered_feature_bc_matrix.h5', library_id="GSM***"
                            , load_images=True, source_image_path="./spatial/")
 adata_vis.obs['sample'] = list(adata_vis.uns['spatial'].keys())[0]
@@ -264,3 +264,4 @@ with mpl.rc_context({'figure.figsize': (15, 15)}):
         colorbar_position='right'
     )
 plt.savefig('sc.pl.spatial_Macro_LYVE1_HOPX+ Fib.pdf')  
+
