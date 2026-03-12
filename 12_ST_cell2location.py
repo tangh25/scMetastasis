@@ -21,7 +21,7 @@ ref_run_name = f'{results_folder}/reference_signatures'
 run_name = f'{results_folder}/cell2location_map'
 
 # adata_vis = sc.datasets.visium_sge(sample_id="V1_Human_Lymph_Node")
-adata_vis = sc.read_visium(path="./", count_file='./filtered_feature_bc_matrix.h5', library_id="GSM8651955"
+adata_vis = sc.read_visium(path="./", count_file='./filtered_feature_bc_matrix.h5', library_id="GSM***"
                            , load_images=True, source_image_path="./spatial/")
 adata_vis.obs['sample'] = list(adata_vis.uns['spatial'].keys())[0]
 adata_vis.var['SYMBOL'] = adata_vis.var_names
@@ -129,7 +129,7 @@ adata_ref = mod.export_posterior(
 # Save model
 mod.save(f"{ref_run_name}", overwrite=True)
 # Save anndata object with results
-adata_file = f"{ref_run_name}/sc_GSM8651955.h5ad"
+adata_file = f"{ref_run_name}/sc_GSM.h5ad"
 adata_ref.write(adata_file)
 adata_file
 
@@ -139,7 +139,7 @@ mod.plot_QC()
 plt.savefig('02-mod.plot_QC.png') 
 
 # Save anndata object with results
-adata_ref.write("./sc_cell2location_GSM8651955.h5ad")
+adata_ref.write("./sc_cell2location_GSM.h5ad")
 # compute the 5%, 50% and 95% quantiles of the posterior distribution directly rather than using 1000 samples from the distribution (or any other quantiles)
 adata_ref = mod.export_posterior(
     adata_ref, use_quantiles=True,
@@ -218,27 +218,27 @@ mod.save(f"{run_name}", overwrite=True)
 adata_vis.obs[adata_vis.uns['mod']['factor_names']] = adata_vis.obsm['q05_cell_abundance_w_sf']
 
 mod.plot_QC()
-plt.savefig('04-mod.plot_QC_GSM8651955.png') 
+plt.savefig('04-mod.plot_QC_GSM.png') 
 plt.show()
 
 adata_vis.obsm
 adata_vis.obsm['means_cell_abundance_w_sf']
 import pandas as pd
 
-pd.DataFrame(adata_vis.obsm['q05_cell_abundance_w_sf']).to_csv("./st_cell2location_GSM8651955_res.csv")
+pd.DataFrame(adata_vis.obsm['q05_cell_abundance_w_sf']).to_csv("./st_cell2location_res.csv")
 adata_vis.uns['spatial'].keys()  
 
 # add 5% quantile, representing confident cell abundance, 'at least this amount is present',
 # to adata.obs with nice names for plotting
 adata_vis.obs[adata_vis.uns['mod']['factor_names']] = adata_vis.obsm['q05_cell_abundance_w_sf'] 
 
-adata_vis.write_h5ad('./adata_vis_GSM8651955.h5ad')
-adata_ref.write_h5ad('./adata_ref_GSM8651955.h5ad')
-adata_vis=sc.read_h5ad('./adata_vis_GSM8651955.h5ad')
+adata_vis.write_h5ad('./adata_vis.h5ad')
+adata_ref.write_h5ad('./adata_ref.h5ad')
+adata_vis=sc.read_h5ad('./adata_vis.h5ad')
 
 from cell2location.utils import select_slide
 
-slide = select_slide(adata_vis, 'GSM8651955')
+slide = select_slide(adata_vis, 'GSM***')
 
 # Now we use cell2location plotter that allows showing multiple cell types in one panel
 from cell2location.plt import plot_spatial
@@ -247,7 +247,7 @@ from cell2location.plt import plot_spatial
 clust_labels = ['Macro_LYVE1','Fib_HOPX']   
 clust_col = ['' + str(i) for i in clust_labels]  # in case column names differ from labels
 
-slide = select_slide(adata_vis, 'GSM8651955')
+slide = select_slide(adata_vis, 'GSM***')
 
 with mpl.rc_context({'figure.figsize': (15, 15)}):
     fig = plot_spatial(
