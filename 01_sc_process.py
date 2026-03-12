@@ -91,7 +91,7 @@ sc.pl.violin(
     jitter=0.4,
     groupby='sample',
     rotation=45,
-    save="_before_qc_GSE156625_p1.pdf"
+    save="_before_qc_p1.pdf"
 )
 
 # =========================
