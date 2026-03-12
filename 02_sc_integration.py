@@ -1,217 +1,308 @@
-### Basic workflows
-### Preprocessing and clustering
-
 # Import required libraries
+import omicverse as ov
+# print(f"omicverse version: {ov.__version__}")
 import scanpy as sc
-import numpy as np
-import anndata as ad
-import pandas as pd
+# print(f"scanpy version: {sc.__version__}")
+
+# Set plotting style for omicverse
+ov.utils.ov_plot_set()
+
+# Set working directory
 import os
-import matplotlib.pyplot as plt
+os.chdir('./data')
 
-# Set verbosity level for scanpy
-sc.settings.verbosity = 3
-sc.logging.print_header()
+# Load AnnData object
+adata = sc.read_h5ad('data_beforeintergration.h5ad')
 
-# Set global plotting parameters (white background, 300 dpi)
-sc.settings.set_figure_params(dpi=300, facecolor="white")
+# Convert expression matrix to sparse format to save memory
+from scipy import sparse
+adata.X = sparse.csr_matrix(adata.X)
 
-# Set input data path
-data_in_path = "./"
-
-# Change working directory
-os.chdir(data_in_path)
-print(os.getcwd())
-
-# Read h5ad file
-file_path = './'
-adata = sc.read_h5ad(file_path)
-print("Data loaded successfully")
-
-# Get file name without extension
-file_name = os.path.basename(file_path).split('_')[0]
-
-# Create output folder
-folder_path = os.path.join(data_in_path, file_name)
-os.makedirs(folder_path, exist_ok=True)
-print(f"Create folder: {folder_path}")
-
-# Check data matrix shape
-adata.to_df().shape
-
-# Display first 5 rows and 5 columns of expression matrix
-adata.to_df().iloc[0:5,0:5]
-
-# Preview metadata
-adata.obs.head()
-
-# Print unique sample IDs
-print(adata.obs['orig.ident'].unique())
-
-# Check unique values in 'orig.ident'
-print(adata.obs['orig.ident'].unique())
-
-# Confirm unique values again
-print(adata.obs['orig.ident'].unique())
-
-# Print all unique raw cell types
-print(list(adata.obs['raw_celltype'].unique()))
-
-# Add sample grouping information
-adata.obs['sample'] = adata.obs['orig.ident']
-
-# Extract sample name by splitting 'orig.ident' with "_"
-# Map the first part to sample group using predefined mapping
-adata.obs['sample'] = adata.obs['orig.ident'].str.split('_').str[0].map(mapping)
-
-# Display first few rows to verify new 'sample' column
-print(adata.obs[['orig.ident', 'sample']].head())
-
-# Check unique sample groups
-adata.obs['sample'].unique()
+# Save raw count matrix to layers
+adata.layers["counts"] = adata.X.copy()
 
 
-# =========================
-# Quality Control (QC)
-# =========================
+######## No batch correction ########
 
-# Identify mitochondrial genes
-adata.var['mt'] = adata.var_names.str.startswith('MT-')
+# Ensure gene names are unique
+adata.var_names_make_unique()
 
-# Identify hemoglobin genes
-adata.var['hb'] = adata.var_names.str.contains(("^HB[^(P)]"))
-
-# Calculate QC metrics (mitochondrial and hemoglobin gene percentage)
-sc.pp.calculate_qc_metrics(adata, qc_vars=['mt','hb'], percent_top=None, log1p=False, inplace=True)
-
-# Visualize QC metrics for each sample
-sc.pl.violin(
-    adata,
-    ['n_genes_by_counts', 'total_counts', 'pct_counts_mt', 'pct_counts_hb'],
-    jitter=0.4,
-    groupby='sample',
-    rotation=45,
-    save="_before_qc_GSE156625_p1.pdf"
-)
-
-# =========================
-# Filtering
-# =========================
-
-# Plot top 20 highly expressed genes
-sc.pl.highest_expr_genes(adata, n_top=20, show=False)
-plt.savefig('./pre_qc_total_counts_top20_genes.pdf', bbox_inches='tight')
-
-# Filter cells and genes based on QC thresholds
+# Basic filtering of cells and genes
 sc.pp.filter_cells(adata, min_genes=200)
 sc.pp.filter_genes(adata, min_cells=3)
 
-# Remove cells with high mitochondrial or hemoglobin gene percentage
-adata = adata[adata.obs['pct_counts_mt'] <= 20, :]
-adata = adata[adata.obs['pct_counts_hb'] <= 1, :]
+# Backup counts layer
+adata.layers["counts"] = adata.X.copy()
 
-print(adata.n_obs, adata.n_vars)
+# Backup QC-filtered dataset
+adata_bk = adata.copy()
+adata.layers["counts"] = adata.X.copy()
 
-# =========================
-# Doublet detection using Scrublet
-# =========================
+# Normalize counts per cell
+sc.pp.normalize_total(adata, target_sum=1e4)
 
-# Save raw data before doublet filtering
+# Log-transform data
+sc.pp.log1p(adata)
+
+# Store normalized data as raw
 adata.raw = adata
 
-# Import Scrublet
-import scrublet as scr
-
-# Run doublet detection
-scrub = scr.Scrublet(adata.raw.X, expected_doublet_rate=0.06)
-result = scrub.scrub_doublets(verbose=False, n_prin_comps=20)
-
-# Plot doublet score histogram
-scrub.plot_histogram()
-
-# Add doublet prediction results to metadata
-adata.obs['doublet_scores'] = result[0]
-adata.obs['predicted_doublets'] = result[1]
-
-# Count predicted doublets
-adata.obs.predicted_doublets.value_counts()
-
-# Convert boolean to string for plotting
-adata.obs['predicted_doublets'] = adata.obs["predicted_doublets"].astype(str)
-
-# Visualize gene number distribution for doublets vs singlets
-sc.pl.violin(
-    adata,
-    'n_genes_by_counts',
-    jitter=0.4,
-    groupby='predicted_doublets',
-    show=False
-)
-plt.savefig('./predicted_doublets_violin_plot.pdf', bbox_inches='tight')
-
-
-# =========================
-# Feature selection and dimensionality reduction
-# =========================
-
 # Identify highly variable genes (HVGs)
-sc.pp.highly_variable_genes(adata, n_top_genes=3000, flavor="seurat_v3", subset=False)
-
-# Subset to HVGs
-adata = adata[:, adata.var.highly_variable]
-
-# Regress out unwanted effects (library size and mitochondrial content)
-sc.pp.regress_out(adata, ['total_counts', 'pct_counts_mt'])
+sc.pp.highly_variable_genes(
+    adata,
+    n_top_genes=3000,
+    batch_key="sample",
+    subset=True
+)
 
 # Scale data
 sc.pp.scale(adata, max_value=10)
 
 # Perform PCA
-sc.tl.pca(adata, svd_solver='arpack')
+sc.tl.pca(adata)
 
-# Compute neighborhood graph
-sc.pp.neighbors(adata, n_neighbors=10, n_pcs=40)
+# Build neighbor graph
+sc.pp.neighbors(adata)
 
 # Run UMAP
 sc.tl.umap(adata)
 
-
-# =========================
-# Visualization
-# =========================
-
-# Plot UMAP colored by doublet scores and predictions
-lis = ['doublet_scores','predicted_doublets']
-for i in lis:
-    sc.pl.umap(adata, color=i, show=False)
-    plt.savefig('./' + i + '_doublet_scores.pdf', bbox_inches='tight')
-
-
-# =========================
-# Remove doublets
-# =========================
-
-# Restore raw data
-adata = adata.raw.to_adata()
-
-# Keep only singlets
-adata = adata[adata.obs['predicted_doublets'] == 'False', :]
-
-print(adata.shape)
-
-
-# =========================
-# QC after filtering
-# =========================
-
-sc.pl.violin(
+# Plot UMAP colored by batch and cell annotation
+sc.pl.umap(
     adata,
-    ['n_genes_by_counts', 'total_counts', 'pct_counts_mt', 'pct_counts_hb'],
-    jitter=0.4,
-    groupby='orig.ident',
-    rotation=45,
-    save="_after_qc_p2.pdf"
+    color=['batch', 'anno_Major'],
+    wspace=0.5,
+    save='Pcancer_anno01_unintergration.png'
 )
 
-# Save processed data
-adata.write_h5ad('./afterqc.h5ad', compression='gzip')
+# Save dataset
+adata.write_h5ad('Pcancer_anno01_unintergration.h5ad')
+
+
+##################################################
+# Batch correction methods
+##################################################
+
+
+######## Harmony ################################
+
+del adata2
+
+# Copy QC-filtered dataset
+adata3 = adata_bk.copy()
+adata3.layers["counts"] = adata3.X.copy()
+
+# Preprocess data using omicverse
+adata3 = ov.pp.preprocess(
+    adata3,
+    mode='shiftlog|pearson',
+    n_HVGs=3000,
+    batch_key='batch'
+)
+
+# Scale data
+ov.pp.scale(adata3)
+
+# Set HVG flag
+adata3.var['highly_variable'] = adata3.var['highly_variable_features'].copy()
+
+# PCA using HVGs
+sc.pp.pca(adata3, n_comps=50, mask_var="highly_variable", layer="scaled")
+
+# Perform Harmony batch correction
+sc.external.pp.harmony_integrate(adata3, 'batch')
+
+# Build neighbor graph using Harmony embedding
+sc.pp.neighbors(adata3, use_rep='X_pca_harmony', key_added='harmony_neighbours')
+
+# Run UMAP
+sc.tl.umap(adata3, neighbors_key='harmony_neighbours')
+
+# Store UMAP embedding
+adata.obsm['X_harmony'] = adata3.obsm['X_umap']
+
+# Plot embedding
+ov.utils.embedding(
+    adata,
+    basis='X_harmony',
+    frameon='small',
+    color=['batch', 'cell_type'],
+    show=False
+)
+
+# Save dataset
+adata.write_h5ad('Pcancer_anno01_harmony.h5ad')
+
+
+######## Scanorama ################################
+
+del adata3
+
+adata4 = adata_bk.copy()
+adata4.layers["counts"] = adata4.X.copy()
+
+# Preprocess data
+adata4 = ov.pp.preprocess(
+    adata4,
+    mode='shiftlog|pearson',
+    n_HVGs=3000,
+    batch_key='batch'
+)
+
+# Split dataset by batch
+batches = adata4.obs['batch'].cat.categories.tolist()
+
+alldata = {}
+for batch in batches:
+    alldata[batch] = adata4[adata4.obs['batch'] == batch,]
+
+# Prepare datasets for Scanorama
+alldata2 = dict()
+for ds in alldata.keys():
+    print(ds)
+    alldata2[ds] = alldata[ds]
+
+adatas = list(alldata2.values())
+
+# Run Scanorama integration
+scanorama.integrate_scanpy(adatas, dimred=50)
+
+# Collect embeddings
+scanorama_int = [ad.obsm['X_scanorama'] for ad in adatas]
+all_s = np.concatenate(scanorama_int)
+
+print(all_s.shape)
+
+# Store Scanorama embedding
+adata4.obsm["X_scanorama"] = all_s
+
+# Build neighbors using Scanorama embedding
+sc.pp.neighbors(adata4, use_rep='X_scanorama', key_added='scanorama_neighbours')
+
+# Run UMAP
+sc.tl.umap(adata4, neighbors_key='scanorama_neighbours')
+
+# Save UMAP embedding
+adata.obsm['X_scanorama'] = adata4.obsm['X_umap']
+
+# Plot embedding
+ov.utils.embedding(
+    adata,
+    basis='X_scanorama',
+    frameon='small',
+    color=['batch', 'cell_type'],
+    show=False
+)
+
+# Save dataset
+adata.write_h5ad('Pcancer_anno01_Scanorama.h5ad')
+
+
+######## scVI ################################
+
+del adata4
+
+adata5 = adata_bk.copy()
+adata5.layers["counts"] = adata5.X.copy()
+
+# Preprocess data
+adata5 = ov.pp.preprocess(
+    adata5,
+    mode='shiftlog|pearson',
+    n_HVGs=3000,
+    batch_key='batch'
+)
+
+# Scale data
+ov.pp.scale(adata5)
+
+# Set HVG flag
+adata5.var['highly_variable'] = adata5.var['highly_variable_features'].copy()
+
+# Setup scVI model
+scvi.model.SCVI.setup_anndata(
+    adata5,
+    layer="counts",
+    batch_key="batch"
+)
+
+# Initialize model
+vae = scvi.model.SCVI(
+    adata5,
+    n_layers=2,
+    n_latent=30,
+    gene_likelihood="nb"
+)
+
+# Train model
+vae.train()
+
+# Get latent representation
+adata5.obsm["X_scVI"] = vae.get_latent_representation()
+
+# Compute MDE embedding
+adata.obsm["X_mde_scVI"] = ov.utils.mde(adata5.obsm["X_scVI"])
+
+# Plot embedding
+ov.utils.embedding(
+    adata,
+    basis='X_mde_scVI',
+    frameon='small',
+    color=['batch', 'cell_type'],
+    show=False
+)
+
+# Save dataset
+adata.write_h5ad('Pcancer_anno01_scVI.h5ad')
+
+
+######## BBKNN ################################
+
+del adata5
+
+adata6 = adata_bk.copy()
+adata6.layers["counts"] = adata6.X.copy()
+
+# Preprocess data
+adata6 = ov.pp.preprocess(
+    adata6,
+    mode='shiftlog|pearson',
+    n_HVGs=3000,
+    batch_key='batch'
+)
+
+# Scale data
+ov.pp.scale(adata6)
+
+# Set HVG flag
+adata6.var['highly_variable'] = adata6.var['highly_variable_features'].copy()
+
+# PCA
+sc.pp.pca(adata6, n_comps=50, mask_var="highly_variable", layer="scaled")
+
+# Run BBKNN batch correction
+sc.external.pp.bbknn(
+    adata6,
+    batch_key="batch",
+    use_rep='X_pca',
+    n_pcs=50,
+    key_added="bbknn_neighbors"
+)
+
+# Run UMAP
+sc.tl.umap(adata6, neighbors_key='bbknn_neighbors')
+
+# Store UMAP embedding
+adata.obsm['X_bbknn'] = adata6.obsm['X_umap']
+
+# Plot embedding
+ov.utils.embedding(
+    adata,
+    basis='X_bbknn',
+    frameon='small',
+    color=['batch', 'cell_type'],
+    show=False
+)
+
+# Save dataset
+adata.write_h5ad('Pcancer_anno01_BBKNN.h5ad')
